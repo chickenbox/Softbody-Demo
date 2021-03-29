@@ -1,6 +1,7 @@
 namespace hahaApp {
     const epsilon = 0.0001
     const v = new THREE.Vector3
+    const v2 = new THREE.Vector3
     const v3 = new THREE.Vector3
 
     function toKey( v: THREE.Vector3 ) {
@@ -8,37 +9,58 @@ namespace hahaApp {
     }
 
     function processGeometry( bufGeo: THREE.BufferGeometry ){
-
-        const clonedG = bufGeo.clone()
-        for( let name in clonedG.attributes ){
-            switch (name) {
-                case "position":
-                    break
-                default:
-                    clonedG.deleteAttribute(name)
-            }
-        }
-        const geometry: THREE.BufferGeometry = (THREE.BufferGeometryUtils as any).mergeVertices(clonedG, epsilon)
-
-        const position = geometry.attributes.position
-        const index = geometry.index
-        const vtxIdxLookup = new Map<string, number>()
+        const position = bufGeo.attributes.position as THREE.BufferAttribute
+        const points = new Array<THREE.Vector3>(position.count)
         for( let i=0; i<position.count; i++ ){
-            v.fromBufferAttribute(position, i)
-            vtxIdxLookup.set(toKey(v), i)
-        }
-        const pos = bufGeo.attributes.position
-        const mapping = new Array<number>(pos.count)
-        for( let i=0; i<pos.count; i++ ){
-            v.fromBufferAttribute( pos, i )
-            mapping[i] = vtxIdxLookup.get( toKey(v) )
+            points[i] = new THREE.Vector3().fromBufferAttribute(position,i)
         }
 
+        let convexHull = (THREE.BufferGeometryUtils as any).mergeVertices( new (THREE as any).ConvexGeometry(points), epsilon ) as THREE.BufferGeometry
+        const convexPos = convexHull.attributes.position as THREE.BufferAttribute
+
+        const mapping = new Array<{
+            index: number
+            weight: number
+        }[]>(position.count)
+        for( let i=0; i<position.count; i++ ){
+            const weights = new Array<{
+                index: number
+                weight: number
+            }>( convexPos.count )
+
+            v.fromBufferAttribute( position, i )
+            for( let j=0; j<convexPos.count; j++ ){
+                v2.fromBufferAttribute(convexPos, j)
+                weights[j] = {
+                    index: j,
+                    weight: v.distanceTo(v2)
+                }
+            }
+
+            weights.sort((a,b)=>a.weight-b.weight)
+            if( weights[0].weight==0 ){
+                weights.length = 1
+                weights[0].weight = 1
+            }else{
+                if( weights.length>4 )
+                    weights.length = 4
+                let totalWeight = 0
+                weights.forEach(w=>{
+                    w.weight = 1/w.weight
+                    totalWeight += w.weight
+                })
+                weights.forEach(w=>w.weight/=totalWeight)
+            }
+
+            mapping[i] = weights
+        }
+        
         return {
-            position: Array.from(position.array),
-            index: Array.from(index.array),
+            position: Array.from( convexPos.array ),
+            index: Array.from(convexHull.index.array),
             mapping: mapping
         }
+
     }
 
     export class SoftBody {
@@ -46,7 +68,10 @@ namespace hahaApp {
         readonly mesh: THREE.Mesh
         readonly softbody: Ammo.btSoftBody
         readonly geometry: THREE.BufferGeometry
-        private mapping: number[]
+        private mapping: {
+            index: number
+            weight: number
+        }[][]
         soundCooldown = 1
 
         constructor(
@@ -100,19 +125,32 @@ namespace hahaApp {
             let totalDeform = 0
             v3.set(0,0,0)
             for( let i=0; i<n; i++ ){
-                const n = this.softbody.m_nodes.at(this.mapping[i])
-                const m_x = n.m_x
-                const m_n = n.m_n
+                const w = this.mapping[i]
+                let px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0
+                for( let j=0; j<w.length; j++ ){
+                    const ww = w[j]
+                    const n = this.softbody.m_nodes.at(ww.index)
+                    const m_x = n.m_x
+                    const m_n = n.m_n
 
+                    px += m_x.x()*ww.weight
+                    py += m_x.y()*ww.weight
+                    pz += m_x.z()*ww.weight
+
+                    nx += m_n.x()*ww.weight
+                    ny += m_n.y()*ww.weight
+                    nz += m_n.z()*ww.weight
+
+                }
                 v.fromBufferAttribute(position, i)
-                v2.set(m_x.x(), m_x.y(), m_x.z())
+                v2.set(px, py, pz)
                 const d = v.distanceTo(v2)
                 deform = Math.max(deform,d)
                 totalDeform += d
                 v3.addScaledVector(v2, d)
 
                 v2.toArray(position.array, i*3)
-                normal.setXYZ(i, m_n.x(), m_n.y(), m_n.z())
+                normal.setXYZ(i, nx, ny, nz)
             }
             v3.divideScalar(totalDeform)
             position.needsUpdate = true
