@@ -22,6 +22,5 @@ cp bower_components/three.js/examples/js/shaders/BokehShader.js ./html/script/li
 cp bower_components/three.js/examples/js/shaders/LuminosityHighPassShader.js ./html/script/lib/
 cp bower_components/three.js/examples/js/postprocessing/UnrealBloomPass.js ./html/script/lib/
 cp bower_components/three.js/examples/js/math/ConvexHull.js ./html/script/lib/
-cp bower_components/three.js/examples/js/geometries/ConvexGeometry.js ./html/script/lib/
 
 

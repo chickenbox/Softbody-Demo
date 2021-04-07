@@ -9,36 +9,68 @@ namespace hahaApp {
     }
 
     function processGeometry( bufGeo: THREE.BufferGeometry ){
-        const position = bufGeo.attributes.position as THREE.BufferAttribute
-        const points = new Array<THREE.Vector3>(position.count)
-        for( let i=0; i<position.count; i++ ){
-            points[i] = new THREE.Vector3().fromBufferAttribute(position,i)
+        const indexLookup = new Map<string,number>()
+        const index: number[] = []
+        const convexPos: THREE.Vector3[] = []
+        const convexHull = new (THREE as any).ConvexHull()
+        convexHull.setFromObject( new THREE.Mesh(bufGeo))
+        const faces = convexHull.faces
+        for ( let i = 0; i < faces.length; i ++ ) {
+
+            const face = faces[ i ]
+            let edge = face.edge
+
+            // we move along a doubly-connected edge list to access all face points (see HalfEdge docs)
+
+            do {
+
+                const point = edge.head().point
+                const key = toKey(point)
+                let idx: number
+                if( indexLookup.has(key) ){
+                    idx = indexLookup.get(key)
+                }else{
+                    idx = convexPos.length
+                    convexPos.push(point)
+                    indexLookup.set(key, idx)
+                }
+                index.push(idx)
+
+                edge = edge.next
+
+            } while ( edge !== face.edge )
+
         }
 
-        let convexHull = (THREE.BufferGeometryUtils as any).mergeVertices( new (THREE as any).ConvexGeometry(points), epsilon ) as THREE.BufferGeometry
-        const convexPos = convexHull.attributes.position as THREE.BufferAttribute
+        const position = bufGeo.attributes.position as THREE.BufferAttribute
+        const normal = bufGeo.attributes.normal as THREE.BufferAttribute
 
         const mapping = new Array<{
-            index: number
-            weight: number
-        }[]>(position.count)
+            initial: {
+                position: THREE.Vector3
+                normal: THREE.Vector3
+            }
+            weights: {
+                index: number
+                weight: number
+            }[]
+        }>(position.count)
         for( let i=0; i<position.count; i++ ){
             const weights = new Array<{
                 index: number
                 weight: number
-            }>( convexPos.count )
+            }>( convexPos.length )
 
-            v.fromBufferAttribute( position, i )
-            for( let j=0; j<convexPos.count; j++ ){
-                v2.fromBufferAttribute(convexPos, j)
+            const v = new THREE.Vector3().fromBufferAttribute( position, i )
+            for( let j=0; j<convexPos.length; j++ ){
                 weights[j] = {
                     index: j,
-                    weight: v.distanceTo(v2)
+                    weight: v.distanceTo(convexPos[j])
                 }
             }
 
             weights.sort((a,b)=>a.weight-b.weight)
-            if( weights[0].weight==0 ){
+            if( weights[0].weight<=epsilon ){
                 weights.length = 1
                 weights[0].weight = 1
             }else{
@@ -52,12 +84,23 @@ namespace hahaApp {
                 weights.forEach(w=>w.weight/=totalWeight)
             }
 
-            mapping[i] = weights
+            mapping[i] = {
+                initial: {
+                    position: v,
+                    normal: new THREE.Vector3().fromBufferAttribute(normal, i)
+                },
+                weights: weights
+            }
+        }
+
+        const convexPosArray = new Array<number>(convexPos.length*3)
+        for( let i=0; i<convexPos.length; i++ ){
+            convexPos[i].toArray(convexPosArray, i*3)
         }
         
         return {
-            position: Array.from( convexPos.array ),
-            index: Array.from(convexHull.index.array),
+            position: convexPosArray,
+            index: index,
             mapping: mapping
         }
 
@@ -68,10 +111,24 @@ namespace hahaApp {
         readonly mesh: THREE.Mesh
         readonly softbody: Ammo.btSoftBody
         readonly geometry: THREE.BufferGeometry
-        private mapping: {
-            index: number
-            weight: number
-        }[][]
+        private states: {
+            initial: {
+                position: THREE.Vector3
+                normal: THREE.Vector3
+            },
+            translate: THREE.Vector3
+            quaternion: THREE.Quaternion
+        }[] = []
+        private mapping:{
+            initial: {
+                position: THREE.Vector3
+                normal: THREE.Vector3
+            }
+            weights: {
+                index: number
+                weight: number
+            }[]
+        }[]
         soundCooldown = 1
 
         constructor(
@@ -91,11 +148,12 @@ namespace hahaApp {
                 info.index.length/3,
                 true
             )
-            this.softbody.m_cfg.kPR = 5
-            this.softbody.m_cfg.viterations = 10
-            this.softbody.m_cfg.piterations = 10
+            this.softbody.m_cfg.kPR = 2
+            this.softbody.m_cfg.viterations = 5
+            this.softbody.m_cfg.piterations = 5
             this.softbody.setTotalMass(0.1,true)
             this.softbody.getCollisionShape().setMargin(0.05)
+            this.setInitialStates()
 
             this.mapping = info.mapping
 
@@ -113,34 +171,64 @@ namespace hahaApp {
             }
         }
 
+        private setInitialStates(){
+            this.states.length = this.softbody.m_nodes.size()
+            for( let i=0; i<this.softbody.m_nodes.size(); i++ ){
+                const node = this.softbody.m_nodes.at(i)
+                const x = node.m_x
+                const n = node.m_n
+                this.states[i] = {
+                    initial:{
+                        position: new THREE.Vector3(x.x(),x.y(),x.z()),
+                        normal: new THREE.Vector3(n.x(),n.y(),n.z()),
+                    },
+                    translate: new THREE.Vector3(0,0,0),
+                    quaternion: new THREE.Quaternion(0,0,0,1)
+                }
+            }
+        }
+
+        private updateStates(){
+            for( let i=0; i<this.softbody.m_nodes.size(); i++ ){
+
+                const node = this.softbody.m_nodes.at(i)
+                const x = node.m_x
+                const n = node.m_n
+
+                const state = this.states[i]
+                state.translate.subVectors( v.set(x.x(), x.y(), x.z()), state.initial.position )
+                state.quaternion.setFromUnitVectors( state.initial.normal, v.set(n.x(), n.y(), n.z()) )
+            }
+        }
+
         update(app: App, deltaTime: number){
             this.soundCooldown -= deltaTime
+
+            this.updateStates()
 
             const position = this.geometry.attributes.position as THREE.BufferAttribute
             const normal = this.geometry.attributes.normal as THREE.BufferAttribute
             const n = position.count
-            const v = new THREE.Vector3
-            const v2 = new THREE.Vector3
             let deform = 0
             let totalDeform = 0
             v3.set(0,0,0)
             for( let i=0; i<n; i++ ){
-                const w = this.mapping[i]
+                const m = this.mapping[i]
+                const w = m.weights
                 let px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0
                 for( let j=0; j<w.length; j++ ){
                     const ww = w[j]
-                    const n = this.softbody.m_nodes.at(ww.index)
-                    const m_x = n.m_x
-                    const m_n = n.m_n
+                    const state = this.states[ww.index]
+                    
+                    v.copy(m.initial.position).add( state.translate ).multiplyScalar(ww.weight)
+                    px += v.x
+                    py += v.y
+                    pz += v.z
 
-                    px += m_x.x()*ww.weight
-                    py += m_x.y()*ww.weight
-                    pz += m_x.z()*ww.weight
-
-                    nx += m_n.x()*ww.weight
-                    ny += m_n.y()*ww.weight
-                    nz += m_n.z()*ww.weight
-
+                    v.copy(m.initial.normal).applyQuaternion(state.quaternion).multiplyScalar(ww.weight)
+                    nx += v.x
+                    ny += v.y
+                    nz += v.z
                 }
                 v.fromBufferAttribute(position, i)
                 v2.set(px, py, pz)
@@ -150,7 +238,8 @@ namespace hahaApp {
                 v3.addScaledVector(v2, d)
 
                 v2.toArray(position.array, i*3)
-                normal.setXYZ(i, nx, ny, nz)
+                v.set(nx,ny,nz).normalize()
+                normal.setXYZ(i, v.x, v.y, v.z)
             }
             v3.divideScalar(totalDeform)
             position.needsUpdate = true

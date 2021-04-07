@@ -479,6 +479,7 @@ namespace hahaApp {
                 } = SoftBody
             ){
             const softBody = new clz(this.world.getWorldInfo(), geometry.clone().translate(position.x, position.y, position.z), material)
+            softBody.mesh.frustumCulled = false
             softBody.mesh.receiveShadow = true
             softBody.mesh.castShadow = true
             this.scene.add(softBody.mesh)
