@@ -30,7 +30,10 @@ namespace hahaApp {
         }
 
         tryLock(){
-            return true
+            if( Atomics.compareExchange( this.view, 0, unlocked, locked ) == unlocked ){
+                return true
+            }
+            return false
         }
 
         unlock(){
