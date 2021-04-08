@@ -22,6 +22,8 @@ namespace hahaApp {
                     console.log("value at: "+msg.data.showValue+" = "+view[msg.data.showValue])
                 }else if( msg.data.startTest3 ){                    
                     mutex.lock()
+                    mutex.lock()
+                    mutex.unlock()
                     console.log("locked in mainthread")
                     worker.postMessage({
                         tryLockMutex: 1

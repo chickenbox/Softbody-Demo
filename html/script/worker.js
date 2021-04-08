@@ -34,23 +34,36 @@ var hahaApp;
     class Mutex {
         constructor(sab) {
             this.sab = sab;
+            this.count = 0;
             this.view = new Int32Array(sab);
         }
         lock() {
+            if (this.count > 0) {
+                this.count++;
+                return;
+            }
             for (;;) {
                 if (Atomics.compareExchange(this.view, 0, unlocked, locked) == unlocked) {
+                    this.count++;
                     return;
                 }
                 Atomics.wait(this.view, 0, locked);
             }
         }
         tryLock() {
+            if (this.count > 0) {
+                this.count++;
+                return true;
+            }
             if (Atomics.compareExchange(this.view, 0, unlocked, locked) == unlocked) {
                 return true;
             }
             return false;
         }
         unlock() {
+            this.count--;
+            if (this.count > 0)
+                return;
             if (Atomics.compareExchange(this.view, 0, locked, unlocked) == locked) {
                 Atomics.notify(this.view, 0, 1);
             }
