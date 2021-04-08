@@ -15,29 +15,7 @@ namespace hahaApp {
             const view = new Float32Array(sharedArrBuf)
             view[0] = 123
 
-            const workerSource = `
-
-            console.log("Start Worker")
-
-            let view
-            onmessage = msg=>{
-                if( msg.data.buffer ){
-                    view = new Float32Array(msg.data.buffer)
-                    console.log("received shared buffer")
-                }else if( msg.data.showValue!==undefined ){
-                    console.log("value at: "+msg.data.showValue+" = "+view[msg.data.showValue])
-                }else if( msg.data.startTest2!==undefined ){
-                    view[0] = 789
-                    postMessage({
-                        showValue: 0
-                    })
-                }
-            }
-
-            `
-            const blob = new Blob([workerSource])
-            const url = URL.createObjectURL(blob)
-            const worker = new Worker(url)
+            const worker = new Worker("./script/worker.js")
             worker.onmessage = msg=>{
                 if( msg.data.showValue!==undefined ){
                     console.log("value at: "+msg.data.showValue+" = "+view[msg.data.showValue])

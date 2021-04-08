@@ -96,7 +96,7 @@ namespace hahaApp {
             ball.quaternion.set( Math.random(), Math.random(), Math.random(), Math.random() ).normalize()
             app.scene.add( ball )
 
-            const ballObj = new Object(ballMass, ballShape, ball, ballLocalInteria)
+            const ballObj = new RBObject(ballMass, ballShape, ball, ballLocalInteria)
             v.setFromMatrixPosition(app.camera.matrixWorld).sub(ball.position).multiplyScalar(-1)
             v.x += Math.random()*0.01
             v.y += Math.random()*0.01

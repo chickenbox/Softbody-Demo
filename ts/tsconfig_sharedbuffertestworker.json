@@ -5,16 +5,16 @@
         "jsx": "react",
         "accessorOptimization": true,
         "reorderFiles": true,
-        "outFile": "../build/all.js",
+        "outFile": "../html/script/worker.js",
         "typeRoots": [
             "../bower_components/"
         ]
     },  
-    "includes": [
-        "src/**/*",
-        "../bower_components/**/*.d.ts"
+    "files": [
+        "src/sharedArrayWorkerTest.ts",
+        "src/mutex.ts"
     ],
-    "exclude": [
-        "src/sharedArrayWorkerTest.ts"
+    "includes": [
+        "../bower_components/**/*.d.ts"
     ]
 }

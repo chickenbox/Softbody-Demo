@@ -40,7 +40,7 @@ namespace hahaApp {
     )
 
 
-    class StarObject extends Object {
+    class StarObject extends RBObject {
         constructor(
             readonly instancedMesh: THREE.InstancedMesh,
             readonly index: number,

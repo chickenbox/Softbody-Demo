@@ -2,6 +2,7 @@
 
 cd ./ts
 tsc-plus
+tsc-plus --project tsconfig_sharedbuffertestworker.json
 
 cd ../
 uglifyjs -c -m -o ./html/script/all.min.js ./build/all.js

@@ -11,7 +11,7 @@ namespace hahaApp {
     const btV = new Ammo.btVector3
     const btT = new Ammo.btTransform
 
-    class RotateObject extends Object {
+    class RotateObject extends RBObject {
 
         update(deltaTime: number){
             super.update(deltaTime)
@@ -71,7 +71,7 @@ namespace hahaApp {
         private light: THREE.Light
 
         world: Ammo.btSoftRigidDynamicsWorld
-        readonly objects: Object[] = []
+        readonly objects: RBObject[] = []
         readonly softBodies: SoftBody[] = []
         private passes = new Map<string, Pass>()
 
@@ -303,7 +303,7 @@ namespace hahaApp {
                 new Ammo.btBoxShape(btV)
             )
 
-            const floorBoxObj = new Object(0, floorBoxShape, room)
+            const floorBoxObj = new RBObject(0, floorBoxShape, room)
             this.world.addRigidBody( floorBoxObj.rigidBody, 1, 0xffffffff )
             this.objects.push(floorBoxObj)
 
@@ -457,7 +457,7 @@ namespace hahaApp {
                     cone.receiveShadow = true
                     cone.position.copy(pos)
                     this.scene.add(cone)
-                    const coneObj = new Object( 1, coneColShape, cone, localInertia )
+                    const coneObj = new RBObject( 1, coneColShape, cone, localInertia )
                     coneObj.rigidBody.setUserIndex(AudioIndex.bottlelHit)
                     this.world.addRigidBody(coneObj.rigidBody, 1, -1)
         

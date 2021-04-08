@@ -9,7 +9,7 @@ namespace hahaApp {
     const threeQ = new THREE.Quaternion
     const threeQ2 = new THREE.Quaternion
 
-    export class Object {
+    export class RBObject {
 
         protected motionState: Ammo.btDefaultMotionState
         readonly rigidBody: Ammo.btRigidBody        
