@@ -184,6 +184,8 @@ namespace hahaApp {
 
         start(){
 
+            new SharedBufferTest().run()
+
             let requestingAnimationFrame = false
             setInterval(()=>{
                 if( this.running ){
