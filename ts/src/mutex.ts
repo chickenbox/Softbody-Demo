@@ -7,8 +7,8 @@ namespace hahaApp {
         static notify( typedArray: ArrayLike<number>, index: number, count: number ): number
     }
 
-    const locked = 0
-    const unlocked = 1
+    const unlocked = 0
+    const locked = 1
 
     export class Mutex {
 

@@ -1,8 +1,8 @@
 #! /bin/bash
 
 cd ./ts
-tsc-plus
-tsc-plus --project tsconfig_sharedbuffertestworker.json
+tsc-plus --project tsconfig_all.json
+tsc-plus --project tsconfig_worker.json
 
 cd ../
 uglifyjs -c -m -o ./html/script/all.min.js ./build/all.js

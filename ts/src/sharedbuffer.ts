@@ -11,14 +11,31 @@ namespace hahaApp {
         }
 
         async run(){
-            const sharedArrBuf = new SharedArrayBuffer(4)
+            const sharedArrBuf = new SharedArrayBuffer(8)
             const view = new Float32Array(sharedArrBuf)
-            view[0] = 123
+            const mutex = new Mutex(sharedArrBuf)
+            view[1] = 123
 
             const worker = new Worker("./script/worker.js")
             worker.onmessage = msg=>{
                 if( msg.data.showValue!==undefined ){
                     console.log("value at: "+msg.data.showValue+" = "+view[msg.data.showValue])
+                }else if( msg.data.startTest3 ){                    
+                    mutex.lock()
+                    console.log("locked in mainthread")
+                    worker.postMessage({
+                        tryLockMutex: 1
+                    })
+                    setTimeout(()=>{
+                        console.log("unlocked in mainthread")
+                        mutex.unlock()
+                        setTimeout(()=>{
+                            console.log("lock again in mainthread")
+                            mutex.lock()
+                            mutex.unlock()
+                            console.log("Complete")
+                        }, 1000)
+                    }, 1000)
                 }
             }
 
@@ -26,13 +43,13 @@ namespace hahaApp {
                 buffer: sharedArrBuf
             } )
             worker.postMessage( {
-                showValue: 0
+                showValue: 1
             } )
             
             await this.wait(1)
-            view[0] = 456
+            view[1] = 456
             worker.postMessage( {
-                showValue: 0
+                showValue: 1
             } )
 
             await this.wait(1)
